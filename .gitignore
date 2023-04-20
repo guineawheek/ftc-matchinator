@@ -1,0 +1,7 @@
+venv/
+tmp/
+__pycache__/
+.ipynb_checkpoints/
+csv/
+.~lock*
+clip_test.ipynb

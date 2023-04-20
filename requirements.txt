@@ -1,0 +1,8 @@
+opencv-python
+pytesseract
+numpy
+scipy
+pandas
+matplotlib
+tqdm
+moviepy
