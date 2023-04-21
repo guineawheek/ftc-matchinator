@@ -121,6 +121,12 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
         if fcnt >= fcount and fcount > 0:
             break
 
+        if fcnt > (cap.get(cv2.CAP_PROP_FRAME_COUNT) - 3):
+            time.sleep(10)
+            cap = cv2.VideoCapture(video_path)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, fcnt-1)
+
+
         succ, frame = cap.read()
         if not succ:
             break
@@ -131,11 +137,11 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
             if not is_para:
                 print(f"time: " 
                     + util.timef(cap.get(cv2.CAP_PROP_POS_MSEC))
-                    + f" fps: {1 / (time.time() - prev_time):.6f}", end="\r", file=pout)
+                    + f" fps: {1 / (time.time() - prev_time):.6f}         ", end="\r", file=pout)
             elif idx % 300 != 0:
                 print(f"time: " 
                     + util.timef(cap.get(cv2.CAP_PROP_POS_MSEC))
-                    + f" fps: {1 / (time.time() - prev_time):.6f} seek: {seek}", file=pout)
+                    + f" fps: {1 / (time.time() - prev_time):.6f}         seek: {seek}", file=pout)
         prev_time = time.time()
 
         if idx % poll_idx != 0:
