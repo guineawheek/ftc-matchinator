@@ -106,7 +106,7 @@ def combine_matches(edata: pass1.Pass1EventData):
                 auto_max_time, auto_max_ts = auto_match.match_ts, auto_match.video_sec
 
         # we may have only recognized the 8 second switchover
-        if auto_max_time <= 8:
+        if auto_max_time is not None and auto_max_time <= 8:
             auto_max_time = None
         
         tele_max_time, tele_max_ts = None, None
