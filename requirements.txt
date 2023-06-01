@@ -6,3 +6,4 @@ pandas
 matplotlib
 tqdm
 moviepy
+PySimpleGUI

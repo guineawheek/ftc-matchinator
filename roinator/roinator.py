@@ -106,16 +106,41 @@ class Model:
         self.roi: List[ROI] = []
         self.window = window
         self.roilist: sg.Listbox = window['!ROIList']
-        pass
+    
+    def from_file(self, fname, img_size):
+        self.clear_all()
+        with open(fname, "r") as f:
+            data = json.load(f)
+        
+        if (data['img_w'], data['img_h']) != img_size:
+            sg.popup_ok(f"Warning: image size {img_size} != {(data['img_w'], data['img_h'])}")
+        
+        for sroi in data['roi']:
+            roi = ROI(sroi['name'], sroi['x'], sroi['y'], sroi['w'], sroi['h'], rtype=sroi['rtype'], visible=sroi['visible'])
+            self.add_roi(roi)
+            roi.redraw(self.window, DEFAULT_LINE_COLOR)
+
+    
+    def to_file(self, fname, img_size):
+        out = {
+            "img_w": img_size[0],
+            "img_h": img_size[1],
+            "roi": [r.serialize() for r in self.roi]
+        }
+        with open(fname, "w") as f:
+            json.dump(out, f)
+    
+    def clear_all(self):
+        self.remove_selected(selected=[s.name for s in self.roi])
     
     def add_roi(self, r: ROI):
         # assumes that r will already have a proper handle
         self.roi.append(r)
         self.roilist.update(values=[roi.name for roi in self.roi])
-        pass
     
-    def remove_selected(self):
-        selected = self.roilist.get()
+    def remove_selected(self, selected=None):
+        if selected is None:
+            selected = self.roilist.get()
         new_roi = []
         last_r = None
         lr_cache = None
@@ -145,8 +170,6 @@ class Model:
             return
         self.roi[s], self.roi[s + d] = self.roi[s + d], self.roi[s]
         self.roilist.update(values=[roi.name for roi in self.roi], set_to_index=[s + d])
-        #print(rname)
-        #self.roilist.set_value([rname])
 
     def reload_names(self):
         self.roilist.update(values=[roi.name for roi in self.roi], set_to_index=self.roilist.get_indexes())
@@ -198,21 +221,19 @@ class Model:
             else:
                 r.redraw(self.window, DEFAULT_LINE_COLOR)
         
-    def select_by_xy(self, x, y):
+    def select_by_xy(self, x, y, centerline):
         for r in self.roi:
             if (r.x <= x <= r.x + r.w) and (r.y <= y <= r.y + r.h):
                 r.select(self.window)
+                r.refresh_axes(self.window, centerline)
                 self.update_select_colors()
                 return
 
 
 
-def main():
+def main(fname):
     # todo:
-    # fname
-    # rename events
 
-    fname = "roinator/templates/pp.png"
     img = Image.open(fname)
     img_size = img.size
     centerline = (img_size[0] // 2, img_size[1] // 2)
@@ -221,20 +242,21 @@ def main():
     sg.theme('Dark Blue 3')
 
     mouse_tool = [[sg.T('ROI click mode', enable_events=True)],
-           [sg.R('Select (F1)', 1, key='!SelectROI', enable_events=True, default=True)],
+           [sg.R('Draw (F1)', 1, key='!DrawROI', enable_events=True)],
            [sg.R('Resize (F2)', 1, key='!ResizeROI', enable_events=True)],
            [sg.R('Move (F3)', 1, key='!MoveROI', enable_events=True)],
-           [sg.R('Draw (F4)', 1, key='!DrawROI', enable_events=True)],
+           [sg.R('Select (F4)', 1, key='!SelectROI', enable_events=True, default=True)],
            [sg.T("Load/save")],
-           [sg.B('Save Layout', key='!SaveLayout', enable_events=True)],
+           [sg.InputText(visible=False, enable_events=True, key="!SaveLayoutPath"), sg.FileSaveAs('Save Layout', key='!SaveLayout', file_types=(("JSON file", ".json"),))],
            [sg.B('Load Layout', key='!LoadLayout', enable_events=True)],
+           [sg.B('Load image', key='!LoadImage', enable_events=True)],
            ]
     
     rect_select = [[sg.T("Regions of interest:")],
-        [sg.Listbox([], key="!ROIList", size=(20, 12), expand_y=True, enable_events=True)]]
+        [sg.Listbox([], key="!ROIList", size=(24, 15), expand_y=True, enable_events=True)]]
     
     params = [
-        [sg.T("Region name")],
+        [sg.T("Region name (return to commit)")],
         [sg.Input(key="!ROIName", size=(20, None))],
         [sg.T("Region type")],
         [sg.OptionMenu(["Number", "Text", "Image"], key="!ROIType", default_value="Number", size=(10, None))],
@@ -246,8 +268,8 @@ def main():
     
     gen_tool = [
         [sg.Checkbox("Show ROI", key="!ROIVisible", size=(15, None), enable_events=True, default=True)],
-        [sg.T("X: "),    sg.Input(size=(8, None), key="!ROIXcoord", enable_events=True, justification="right")],
-        [sg.T("Y: "),    sg.Input(size=(8, None), key="!ROIYcoord", enable_events=True, justification="right")],
+        [sg.T("X "),    sg.Input(size=(8, None), key="!ROIXcoord", enable_events=True, justification="right")],
+        [sg.T("Y "),    sg.Input(size=(8, None), key="!ROIYcoord", enable_events=True, justification="right")],
         [sg.T("Width"),  sg.Input(size=(8, None), key="!ROIWidth",  enable_events=True, justification="right")],
         [sg.T("Height"), sg.Input(size=(8, None), key="!ROIHeight", enable_events=True, justification="right")],
         [sg.T("X-center offset"), sg.Input(size=(8, None), key="!ROIYoff", enable_events=True, disabled=True, justification="right")],
@@ -290,18 +312,21 @@ def main():
     roi: ROI = None
     start_point = end_point = prior_rect = None
 
+    return_code = 0
+
     while True:
         event, values = window.read()
         roi = model.get_selected_roi(values)
-        print(event, values)
+        #print(event, values)
         if event == sg.WIN_CLOSED or event == "Escape:9":
+            return_code = 0
             break  # exit
 
         if event in ('!MoveROI', "F3:69"):
             graph.set_cursor(cursor='fleur')
         elif event in ("!ResizeROI", "F2:68"):
             graph.set_cursor(cursor='sizing')
-        elif event in ("!DrawROI", "F4:70"):
+        elif event in ("!DrawROI", "F1:67"):
             graph.set_cursor(cursor='cross')
 
         elif not event.startswith('!ROIGraph'):
@@ -311,17 +336,16 @@ def main():
             window['!MoveROI'].update(value=True)
         elif event == "F2:68":
             window['!ResizeROI'].update(value=True)
-            pass
-        elif event == "F4:70":
-            window['!DrawROI'].update(value=True)
-            pass
         elif event == "F1:67":
+            window['!DrawROI'].update(value=True)
+        elif event == "F4:70":
             window['!SelectROI'].update(value=True)
-            pass
 
         if event == "!ROIGraph":
             x, y = values["!ROIGraph"]
             if not dragging:
+                if values['!MoveROI']:
+                    model.select_by_xy(x, y, centerline)
                 start_point = (x, y)
                 dragging = True
                 lastxy = x, y
@@ -357,11 +381,10 @@ def main():
 
                 elif values['!DrawROI']:
                     end_point = (max(0, min(end_point[0], img_size[0]-1)), max(0, min(end_point[1], img_size[1]-1)))
-                    print("endpoint", end_point, img_size)
                     prior_rect = graph.draw_rectangle(start_point, end_point, line_color=SELECT_LINE_COLOR, line_width=3)
                 
             if values['!SelectROI']:
-                model.select_by_xy(x, y)
+                model.select_by_xy(x, y, centerline)
 
 
 
@@ -373,7 +396,6 @@ def main():
         elif event.endswith('+UP'):
             if values['!DrawROI'] and start_point is not None:
                 # rectify the start/end points
-                #print(start_point, end_point)
                 start_point, end_point = (min(start_point[0], end_point[0]), min(start_point[1], end_point[1])), (max(start_point[0], end_point[0]), max(start_point[1], end_point[1])), 
                 graph.delete_figure(prior_rect)
                 prior_rect = graph.draw_rectangle(start_point, end_point, line_color=SELECT_LINE_COLOR, line_width=3)
@@ -459,8 +481,29 @@ def main():
             else:
                 roi.name = new_name
                 model.reload_names()
+            
+        elif event == "!LoadImage":
+            return_code = 1
+            break
+        elif event == "!LoadLayout":
+            layout_fname = sg.popup_get_file("Open layout file", file_types=(("JSON layout files", ".json"),))
+            if layout_fname is None:
+                continue
+            model.from_file(layout_fname, img_size)
+        elif event == "!SaveLayoutPath":
+            model.to_file(values['!SaveLayout'], img_size)
+
         
     window.close()
+    return return_code
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1:
+        fname = sys.argv[1]
+    else:
+        fname = sg.popup_get_file("Open image file")
+    while fname is not None:
+        ret = main(fname)
+        if ret != 1:
+            break
+        fname = sg.popup_get_file("Open image file")
