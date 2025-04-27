@@ -113,6 +113,7 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
     if idx > 0:
         cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
     #print("lol")
+    avg_time = 1e-10
     prev_time = time.time()
     while cap.isOpened():
         if fcnt >= fcount and fcount > 0:
