@@ -52,10 +52,28 @@ class ParamMatcher(TemplateMatcher):
         self.real_init(params.in_width, params.in_height, template, threshold=self.THRESH)
 
 
+class ITDLogoMatcher(ParamMatcher):
+    """looks for and matches the Into The Deep logo in video frames"""
+    IMG_PATH = "templates/itd.png"
+    THRESH = consts.LOGO_MATCH_THR
+
+class ITDRedBasketMatcher(ParamMatcher):
+    IMG_PATH = "templates/red_basket.png"
+    THRESH = consts.LOGO_MATCH_THR
+    def exists(self, match_display, params: consts.ScaledParams):
+        """Checks if the red basket exists, which determines if this is even a valid match display at all."""
+        left_win = match_display[:, 0:match_display.shape[1]//2, :]
+        right_win = match_display[:, match_display.shape[1]//2:, :]
+        left_matches = self.match_template(left_win)
+        right_matches = self.match_template(right_win)
+
+        return np.any(left_matches > self.THRESH) or np.any(right_matches > self.THRESH)
+
+
 class EnergizeLogoMatcher(ParamMatcher):
     """looks for and matches the FIRST Energize logo in video frames"""
     IMG_PATH = "templates/en.png"
-    THRESH = consts.ENERGIZE_LOGO_MATCH_THR
+    THRESH = consts.LOGO_MATCH_THR
 
 class PPCapMatcher(ParamMatcher):
     """looks for and matches the Power Play unscored cap image in video frames"""

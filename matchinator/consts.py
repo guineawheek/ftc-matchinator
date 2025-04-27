@@ -1,7 +1,7 @@
 import numpy as np
 
-# FIRST Energize Logo match threshold (0.0-1.0)
-ENERGIZE_LOGO_MATCH_THR = 0.8
+# Sesaon logo match threshold (0.0-1.0)
+LOGO_MATCH_THR = 0.8
 
 PP_CAP_THR = 0.6
 
@@ -15,7 +15,7 @@ MATCH_TOTAL_SCORE_THR = 0.6
 MATCH_GROUP_MIN_COUNT = 5
 
 # number of seconds to clip a match before auto
-MATCH_PRE_AUTO_START = 3
+MATCH_PRE_AUTO_START = 4
 
 # 
 MATCH_POST_TELE_END = 5
@@ -36,11 +36,22 @@ class ScaledParams:
         self.scalex = SCALEX
         self.scaley = SCALEY
 
+        # Basic dimensions.
+        self.WIDTH                  = SCALEX(1920)
+        self.HEIGHT                 = SCALEY(1080)
 
-        self.NAME_LEFT_OFFSET       = SCALEX(340)  # offset from left side of energize logo
-        self.NAME_WIDTH             = SCALEX(460)  # width of match name window
+        self.SEASON_LOGO_WIDTH      = SCALEX(170)
+        self.NAME_LEFT_OFFSET       = SCALEX(784)  # offset from left side of season logo
+        self.NAME_WIDTH             = SCALEX(780)  # width of match name window
         self.NAME_HEIGHT            = SCALEY(60)   # height of match name window
         self.DISPLAY_HEIGHT         = SCALEY(180)  # height of entire match display
+
+        # center timer ROI; used to determine if we're in a match or not, and the time
+        self.CENTER_TIMER_LEFT      = SCALEX(860)
+        self.CENTER_TIMER_TOP       = SCALEY(0)
+        self.CENTER_TIMER_WIDTH     = SCALEX(202)
+        self.CENTER_TIMER_HEIGHT    = SCALEY(178)
+        self.CENTER_TIMER_VALUE_TOP = SCALEY(75)
 
         # match cap window constants -- used to detect if a PP match is in teleop or auto
         self.CAP_WIDTH              = SCALEX(100)  # width of match cap detection windows
@@ -54,9 +65,9 @@ class ScaledParams:
 
         # it's not red or blue alliance as colors can be swapped
         self.LEFT_ALLIANCE_OFFSET   = SCALEX(489) 
-        self.RIGHT_ALLIANCE_OFFSET  = SCALEX(1275)
-        self.ALLIANCE_WIDTH         = SCALEX(154)
+        self.RIGHT_ALLIANCE_OFFSET  = SCALEX(1295)
+        self.ALLIANCE_WIDTH         = SCALEX(142)
 
         self.LEFT_TOTAL_SCORE_OFFSET = SCALEX(647)
-        self.LEFT_TOTAL_SCORE_WIDTH  = SCALEX(212)
-        self.LEFT_TOTAL_SCORE_HEIGHT = SCALEY(123)
+        self.LEFT_TOTAL_SCORE_WIDTH  = SCALEX(200)
+        self.LEFT_TOTAL_SCORE_HEIGHT = SCALEY(158)

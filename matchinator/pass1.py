@@ -18,10 +18,9 @@ from . import consts, matchers, util
 
 
 ## CONVENTIONS:
-# everything should use xy EXCEPT for numpy shit
+# everything should use xy/(x, y)/x=v[0], y=v[1] EXCEPT for numpy shit
 
 # constant tunables
-
 
 
 @dataclasses.dataclass
@@ -30,13 +29,10 @@ class Pass1EventMatch:
     top: bool
     frame_idx: int
     video_sec: float
-    is_tele: bool
 
     match_ts: int
-    red_teams: tuple[str]
-    blue_teams: tuple[str]
+    display_data: util.DisplayData
     is_replay: bool
-    colors_flipped: bool
 
 @dataclasses.dataclass
 class Pass1EventData:
@@ -84,7 +80,7 @@ def run_parallel(video_path, threads=None, en_name=None, pout=sys.stderr, poll=1
     return p1ed
     
 
-def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_para=False):
+def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_para=False, live=False):
     """Runs a fast first pass of the video.
     This will run the pipeline every second in the video, and return a Pass1EventData object
     containing metadata and the timestamps of all frames with a match display on screen. 
@@ -104,24 +100,25 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
     #scalex, scaley = np.array([width, height]) / consts.BASE_IMSIZE
     params = consts.ScaledParams(width, height)
 
-    logo_matcher = matchers.EnergizeLogoMatcher(params, en_name)
-    cap_matcher = matchers.PPCapMatcher(params)
+    logo_matcher = matchers.ITDLogoMatcher(params, en_name)
+    basket_matcher = matchers.ITDRedBasketMatcher(params)
 
-    # read the FIRST Energize logo that appears on the left of the display
+    # read the season logo
     
     poll_idx = int(fps * poll)
     assert fps > 0, "fps call returned zero ;w;"
     
     idx = seek-1
     fcnt = 0
-    #cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+    if idx > 0:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
     #print("lol")
     prev_time = time.time()
     while cap.isOpened():
         if fcnt >= fcount and fcount > 0:
             break
 
-        if fcnt > (cap.get(cv2.CAP_PROP_FRAME_COUNT) - 3):
+        if fcnt > (cap.get(cv2.CAP_PROP_FRAME_COUNT) - 3) and live:
             time.sleep(10)
             cap = cv2.VideoCapture(video_path)
             cap.set(cv2.CAP_PROP_POS_FRAMES, fcnt-1)
@@ -134,14 +131,20 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
         fcnt += 1
 
         if idx % 10 == 0:
+            if avg_time < 1e-10:
+                avg_time = 1e-10
+
             if not is_para:
                 print(f"time: " 
                     + util.timef(cap.get(cv2.CAP_PROP_POS_MSEC))
-                    + f" fps: {1 / (time.time() - prev_time):.6f}         ", end="\r", file=pout)
+                    + f" fps: {1 / avg_time:.6f}         ", end="\r", file=pout)
             elif idx % 300 != 0:
                 print(f"time: " 
                     + util.timef(cap.get(cv2.CAP_PROP_POS_MSEC))
-                    + f" fps: {1 / (time.time() - prev_time):.6f}         seek: {seek}", file=pout)
+                    + f" fps: {1 / avg_time:.6f}         seek: {seek}", file=pout)
+        frame_duration = time.time() - prev_time
+        avg_time = avg_time * (99/100) + frame_duration * 1/100
+
         prev_time = time.time()
 
         if idx % poll_idx != 0:
@@ -156,7 +159,7 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
             # also crop out the match display part of the frame
             match_display, match_is_top = util.get_match_display(frame, match_tlbr, params)
             
-            if util.match_is_preview(match_display):
+            if util.match_is_preview(match_display, basket_matcher, params=params):
                 # welp, this is a match preview. next.
                 continue
             
@@ -168,31 +171,32 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
                 continue
 
             #  attempt to extract the match timestamp
-            timestamp, _ = util.extract_match_time(match_display, match_is_top, params)
+            timestamp, _ = util.extract_match_time(match_display, params)
+            ts = util.conv_match_time(timestamp)
 
-            if not util.isint(timestamp):
-                # we discard  non-integer timestamps
+            if ts is None or ts < 10 or ts > 149:
+                # we discard non-integer timestamps, or those that could be in the auto/tele handoff,
+                # or those that pre-start the match
                 if debug:
-                    print("reject timestamp", timestamp, file=pout)
+                    print(f"reject timestamp {timestamp:!r}", file=pout)
                 continue
             
             
             # check if this is teleop or auto
-            is_tele = cap_matcher.exists(match_display, params)
+            #is_tele = cap_matcher.exists(match_display, params)
 
 
             # get whether or not the match display is veversed
-            display_reversed = util.are_colors_flipped(match_display, params)
+            display_data = util.extract_display_data(match_display, params)
 
-            left_teams, right_teams = util.extract_match_teams(match_display, params)
-
-            if display_reversed:
-                red_alliance, blue_alliance = tuple(left_teams), tuple(right_teams)
-            else:
-                red_alliance, blue_alliance = tuple(right_teams), tuple(left_teams)
-            
-
-            event_match = Pass1EventMatch(match_name, match_is_top, idx, cap.get(cv2.CAP_PROP_POS_MSEC) / 1000, is_tele, int(timestamp), red_alliance, blue_alliance, None, display_reversed)
+            event_match = Pass1EventMatch(
+                name=match_name,
+                top=match_is_top,
+                frame_idx = idx,
+                video_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000,
+                match_ts = ts,
+                display_data = display_data,
+                is_replay = False)
             event_data.matches.append(event_match)
     cap.release()
 

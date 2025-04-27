@@ -1,7 +1,8 @@
 import dataclasses
 from typing import List
 from . import util, matchers, consts, pass1
-
+import random
+import numpy as np
 
 """
 look at match teams, attempt to deduce events from them/group
@@ -78,8 +79,39 @@ def freq_max(lst, attr):
     tbl = freq_table(lst, attr)
     return sorted(tbl.keys(), key=lambda k: -tbl[k])[0]
 
+@dataclasses.dataclass
+class SampleInfo:
+    group: List[pass1.Pass1EventMatch]
+    avg_match_start: float
+    score: float
 
-def combine_matches(edata: pass1.Pass1EventData):
+def create_sample(group: List[pass1.Pass1EventMatch]) -> SampleInfo:
+    """
+    randomly sample up to 11 points from the group, and then compute the 
+    average estimated start time and the variance.
+    """
+    sample_size = min(len(group), 11)
+    sample = random.sample(group, sample_size)
+    starts = []
+    for entry in sample:
+        video_sec = entry.video_sec
+        match_ts = entry.match_ts
+        # account for the 8 second auto/tele switchover
+        if match_ts <= 120:
+            match_ts -= 8
+            # one second left in auto -> ts of 121 -> 29 seconds ago
+            # one second into tele -> ts of 119 -> 31 seconds ago + 8 seconds
+        match_start = video_sec - (150 - match_ts)
+        starts.append(match_start)
+
+    return SampleInfo(
+        group=sample,
+        avg_match_start=np.mean(starts),
+        score=np.var(starts)
+    )
+
+def combine_matches(edata: pass1.Pass1EventData, seed=0):
+    random.seed(seed)
     groups: List[List[pass1.Pass1EventMatch]] = coalese_groups(filter_groups(coalese_groups(edata.matches)))
     all_matches = []
 
@@ -87,60 +119,18 @@ def combine_matches(edata: pass1.Pass1EventData):
         # the easy stuff -- just get the most common occurances
         p2em = Pass2EventMatch(None, None, None, None, None, None, None, None)
         p2em.name = match_group[0].name
-        p2em.red_teams = freq_max(match_group, "red_teams")
-        p2em.blue_teams = freq_max(match_group, "blue_teams")
+        data_group = [m.display_data for m in match_group]
+
+        p2em.red_teams = freq_max(data_group, "red_teams")
+        p2em.blue_teams = freq_max(data_group, "blue_teams")
         p2em.is_replay = freq_max(match_group, "is_replay")
-        p2em.colors_flipped = freq_max(match_group, "colors_flipped")
+        p2em.colors_flipped = freq_max(data_group, "display_flipped")
         p2em.top = freq_max(match_group, "top")
 
-        # now to actually detect where the matches actually are
+        # pick 100 random solutions and pick the ones that make the most sense
+        soln = min([create_sample(match_group) for i in range(100)], key=lambda x: x.score)
 
-        auto_max_time, auto_max_ts = None, None
-        for auto_match in (c for c in match_group if not c.is_tele):
-            # do not match "30", this is prematch
-            if auto_match.match_ts >= 30:
-                continue
-            if auto_max_time is None:
-                auto_max_time, auto_max_ts = auto_match.match_ts, auto_match.video_sec
-            elif auto_match.match_ts > auto_max_time:
-                auto_max_time, auto_max_ts = auto_match.match_ts, auto_match.video_sec
-
-        # we may have only recognized the 8 second switchover
-        if auto_max_time is not None and auto_max_time <= 8:
-            auto_max_time = None
-        
-        tele_max_time, tele_max_ts = None, None
-        tele_min_time, tele_min_ts = None, None
-
-        for tele_match in (c for c in match_group if c.is_tele):
-            if tele_match.match_ts == 0:
-                continue
-
-            if tele_max_time is None:
-                tele_max_time, tele_max_ts = tele_match.match_ts, tele_match.video_sec
-
-            elif tele_match.match_ts > tele_max_time:
-                tele_max_time, tele_max_ts = tele_match.match_ts, tele_match.video_sec
-            
-            if tele_min_time is None:
-                tele_min_time, tele_min_ts = tele_match.match_ts, tele_match.video_sec
-            elif tele_min_time >= tele_match.match_ts:
-                tele_min_time, tele_min_ts = tele_match.match_ts, tele_match.video_sec
-            
-        # logic out the match start and end times
-        if auto_max_time is not None:
-            match_start = max(auto_max_ts - (30 - auto_max_time) - consts.MATCH_PRE_AUTO_START, 0)
-        elif tele_max_time is None:
-            raise RuntimeError("this hsould literally never ahppen bruh")
-        else:
-            match_start = max(tele_max_ts - (120 - tele_max_time) - (38) - consts.MATCH_PRE_AUTO_START, 0)
-        
-        if tele_min_time is not None:
-            match_end = tele_min_ts + tele_min_time + consts.MATCH_POST_TELE_END
-        else:
-            match_end = auto_max_ts + auto_max_time + 128 + consts.MATCH_POST_TELE_END
-
-        p2em.start_ts = match_start
-        p2em.end_ts = match_end
+        p2em.start_ts = soln.avg_match_start - consts.MATCH_PRE_AUTO_START
+        p2em.end_ts = soln.avg_match_start + 158 + consts.MATCH_POST_TELE_END
         all_matches.append(p2em)
     return all_matches
