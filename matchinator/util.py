@@ -17,6 +17,9 @@ class DictStruct:
         self.__dict__ = fields
         self._dict = fields
 
+def hms2f(h=0, m=0, s=0, fps=30) -> int:
+    return int((h * 60 * 60 + m * 60 + s) * fps)
+
 def timef(ms):
     """formats millisecond times nicely"""
     ts = ms // 1000

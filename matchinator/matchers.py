@@ -59,7 +59,7 @@ class ITDLogoMatcher(ParamMatcher):
 
 class ITDRedBasketMatcher(ParamMatcher):
     IMG_PATH = "templates/red_basket.png"
-    THRESH = consts.LOGO_MATCH_THR
+    THRESH = 0.5
     def exists(self, match_display, params: consts.ScaledParams):
         """Checks if the red basket exists, which determines if this is even a valid match display at all."""
         left_win = match_display[:, 0:match_display.shape[1]//2, :]
@@ -74,27 +74,6 @@ class EnergizeLogoMatcher(ParamMatcher):
     """looks for and matches the FIRST Energize logo in video frames"""
     IMG_PATH = "templates/en.png"
     THRESH = consts.LOGO_MATCH_THR
-
-class PPCapMatcher(ParamMatcher):
-    """looks for and matches the Power Play unscored cap image in video frames"""
-    IMG_PATH = "templates/cap_unscored.png"
-    THRESH = consts.PP_CAP_THR
-    def exists(self, match_display, params: consts.ScaledParams):
-        """
-        Checks if the endgame caps exist, as this determines if this is auto/switchover or teleop. 
-        Will work on scored caps even though they are colored differently 
-
-        match_display: as returned by get_match_display
-        params: ScaledParams 
-        """
-        left_win = match_display[:, params.CAP_LEFT_OFFSET:params.CAP_LEFT_OFFSET + params.CAP_WIDTH, :]
-        right_win = match_display[:, params.CAP_RIGHT_OFFSET:params.CAP_RIGHT_OFFSET + params.CAP_WIDTH, :]
-
-        left_matches = self.match_template(left_win)
-        right_matches = self.match_template(right_win)
-
-        return np.any(left_matches > self.THRESH) or np.any(right_matches > self.THRESH) #, np.max(left_matches), np.max(right_matches)
-        #return util.DictStruct(locals())
 
 
 class BlobMatcher:

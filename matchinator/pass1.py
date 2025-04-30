@@ -9,12 +9,15 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Dict
+import typing
 import numpy as np
 import cv2
 import operator
 import dataclasses
 import multiprocessing
-from . import consts, matchers, util
+import pickle
+from . import consts, matchers, util, match_result
 
 
 ## CONVENTIONS:
@@ -40,6 +43,17 @@ class Pass1EventData:
     width: int
     height: int
     matches: list = dataclasses.field(default_factory=list)
+    match_result_map: Dict[str, match_result.MatchResultScreen] = dataclasses.field(default_factory=dict)
+
+    def to_file(self, fname: str):
+        with open(fname, "wb") as f:
+            pickle.dump(self, f)
+    
+    @classmethod
+    def from_file(cls, fname: str) -> typing.Self:
+        with open(fname, "rb") as f:
+            return pickle.load(f)
+
 
 ## helper functions
 def mult_tuple(t, v):
@@ -80,7 +94,7 @@ def run_parallel(video_path, threads=None, en_name=None, pout=sys.stderr, poll=1
     return p1ed
     
 
-def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_para=False, live=False):
+def run(video_path, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_para=False, live=False, detect_match_results=True) -> Pass1EventData:
     """Runs a fast first pass of the video.
     This will run the pipeline every second in the video, and return a Pass1EventData object
     containing metadata and the timestamps of all frames with a match display on screen. 
@@ -100,7 +114,7 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
     #scalex, scaley = np.array([width, height]) / consts.BASE_IMSIZE
     params = consts.ScaledParams(width, height)
 
-    logo_matcher = matchers.ITDLogoMatcher(params, en_name)
+    logo_matcher = matchers.ITDLogoMatcher(params)
     basket_matcher = matchers.ITDRedBasketMatcher(params)
 
     # read the season logo
@@ -152,6 +166,7 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
             continue
         # more browse logic here
 
+        video_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
         has_logo, match_tlbr = logo_matcher.match(frame)
         if has_logo:
             # get the topleft and bottomright corners
@@ -194,11 +209,19 @@ def run(video_path, en_name=None, pout=sys.stderr, poll=1, debug=False, seek=0, 
                 name=match_name,
                 top=match_is_top,
                 frame_idx = idx,
-                video_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000,
+                video_sec = video_sec,
                 match_ts = ts,
                 display_data = display_data,
                 is_replay = False)
             event_data.matches.append(event_match)
+        elif detect_match_results:
+            result = match_result.detect_match_result(video_sec, frame, params)
+            if result is not None:
+                if result.ftc_events_url in event_data.match_result_map:
+                    event_data.match_result_map[result.ftc_events_url].fold(result)
+                else:
+                    event_data.match_result_map[result.ftc_events_url] = result
+
     cap.release()
 
     if debug:

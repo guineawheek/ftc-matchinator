@@ -1,7 +1,7 @@
 import numpy as np
 
 # Sesaon logo match threshold (0.0-1.0)
-LOGO_MATCH_THR = 0.8
+LOGO_MATCH_THR = 0.7
 
 PP_CAP_THR = 0.6
 
@@ -53,16 +53,6 @@ class ScaledParams:
         self.CENTER_TIMER_HEIGHT    = SCALEY(178)
         self.CENTER_TIMER_VALUE_TOP = SCALEY(75)
 
-        # match cap window constants -- used to detect if a PP match is in teleop or auto
-        self.CAP_WIDTH              = SCALEX(100)  # width of match cap detection windows
-        self.CAP_RIGHT_OFFSET       = SCALEX(960 + 470)  # left edge of right offset
-        self.CAP_LEFT_OFFSET        = SCALEX(960 - 470 - 100)  # left edge of left offset
-
-        self.TIMER_HEIGHT           = SCALEY(44)
-        self.TIMER_WIDTH            = SCALEX(90)
-        self.TIMER_LEFT_OFFSET      = SCALEX(915)
-        self.TIMER_EDGE_OFFSET      = SCALEY(6)
-
         # it's not red or blue alliance as colors can be swapped
         self.LEFT_ALLIANCE_OFFSET   = SCALEX(489) 
         self.RIGHT_ALLIANCE_OFFSET  = SCALEX(1295)
@@ -71,3 +61,8 @@ class ScaledParams:
         self.LEFT_TOTAL_SCORE_OFFSET = SCALEX(647)
         self.LEFT_TOTAL_SCORE_WIDTH  = SCALEX(200)
         self.LEFT_TOTAL_SCORE_HEIGHT = SCALEY(158)
+
+        self.RESULT_QR_LEFT          = SCALEX(716)
+        self.RESULT_QR_TOP           = SCALEY(780)
+        self.RESULT_QR_WIDTH         = SCALEX(168)
+        self.RESULT_QR_HEIGHT        = SCALEY(168)

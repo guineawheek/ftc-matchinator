@@ -1,24 +1,15 @@
 import dataclasses
 from typing import List
-from . import util, matchers, consts, pass1
+from . import util, matchers, consts, pass1, match_result
 import random
 import numpy as np
+import subprocess
 
 """
-look at match teams, attempt to deduce events from them/group
- - for future release
 
-group match entries by match name/time
-discard entries with less than 5 entries, regroup
-
-for each match group:
-    find the earliest largest value < 29 for auto
-
-    find the earliest largest value <= 120 for teleop
-
-
-return all match timestamps and clip videos from source using ffmpreg
-
+this takes the cv detection data from pass1
+and then runs RANSAC on the data to come up with the lowest variance explanation
+for the data and where the video probably starts and ends.
 
 TODO:
 implement replay suppport
@@ -110,7 +101,7 @@ def create_sample(group: List[pass1.Pass1EventMatch]) -> SampleInfo:
         score=np.var(starts)
     )
 
-def combine_matches(edata: pass1.Pass1EventData, seed=0):
+def combine_matches(edata: pass1.Pass1EventData, seed=0) -> List[Pass2EventMatch]:
     random.seed(seed)
     groups: List[List[pass1.Pass1EventMatch]] = coalese_groups(filter_groups(coalese_groups(edata.matches)))
     all_matches = []
@@ -130,7 +121,106 @@ def combine_matches(edata: pass1.Pass1EventData, seed=0):
         # pick 100 random solutions and pick the ones that make the most sense
         soln = min([create_sample(match_group) for i in range(100)], key=lambda x: x.score)
 
-        p2em.start_ts = soln.avg_match_start - consts.MATCH_PRE_AUTO_START
-        p2em.end_ts = soln.avg_match_start + 158 + consts.MATCH_POST_TELE_END
+        p2em.start_ts = float(soln.avg_match_start - consts.MATCH_PRE_AUTO_START)
+        p2em.end_ts = float(soln.avg_match_start + 158 + consts.MATCH_POST_TELE_END)
         all_matches.append(p2em)
     return all_matches
+
+def clip_match(p: Pass2EventMatch, src: str, fname_template: str, offset=0, pass1_data: pass1.Pass1EventData=None):
+    match_name = p.name
+    match_numer = 0
+    tiebreaker_num = 1
+    spl = match_name.split()
+    if match_name.startswith("Qualification"):
+        match_name = f"Qualification {spl[1]}"
+        match_numer = int(spl[1])
+    if match_name.startswith("Playoff"):
+        if match_name.endswith("Tiebreaker"):
+            tiebreaker_num += 1
+            match_name = f"Match {spl[2]} Tiebreaker"
+        else:
+            match_name = f"Match {spl[2]}"
+        match_numer = int(spl[2])
+    if "da Vinci" in match_name:
+        match_numer = int(spl[-1])
+        match_name = f"da Vinci {spl[-1]}"
+    
+    results_screen: match_result.MatchResultScreen | None = None
+    if pass1_data is not None:
+        for k, v in pass1_data.match_result_map.items():
+            if not k.startswith("https://ftc.events"):
+                continue
+            if match_name.startswith("da Vinci") and k.endswith(f"playoff/{match_numer}/{tiebreaker_num}"):
+                results_screen = v
+                break
+            if match_name.startswith("Qualification") and k.endswith(f"qualifications/{match_numer}"):
+                results_screen = v
+                break
+            if match_name.startswith("Playoff") and k.endswith(f"playoff/{match_numer}/{tiebreaker_num}"):
+                results_screen = v
+                break
+            
+    if results_screen is None:
+        print("WARNING: No results screen for", match_name)
+        return subprocess.call([
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{p.start_ts - offset:.03f}",
+            "-to",
+            f"{p.end_ts - offset:.03f}",
+            "-i",
+            src,
+            "-c:v", "copy",
+            "-c:a", "copy",
+            fname_template.format(name=match_name)
+        ])
+    else:
+        # cut the video first
+        subprocess.check_call([
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{p.start_ts - offset:.03f}",
+            "-to",
+            f"{p.end_ts - offset:.03f}",
+            "-i",
+            src,
+            "-c:v", "copy",
+            "-c:a", "copy",
+            "/tmp/matchinator_match_video.mkv"
+        ])
+
+
+        results_start = results_screen.start_ts - consts.MATCH_PRE_AUTO_START - offset
+        results_end = results_screen.start_ts + consts.MATCH_POST_TELE_END - offset
+
+        subprocess.check_call([
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{results_start:.03f}",
+            "-to",
+            f"{results_end:.03f}",
+            "-i",
+            src,
+            "-c:v", "copy",
+            "-c:a", "copy",
+            "/tmp/matchinator_results_video.mkv"
+        ])
+
+        with open("/tmp/matchinator_concat.txt", "w") as f:
+            f.write("file '/tmp/matchinator_match_video.mkv'\nfile '/tmp/matchinator_results_video.mkv'")
+
+        subprocess.check_call([
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat"
+            "-safe",
+            "0"
+            "-i",
+            "/tmp/matchinator_concat.txt"
+            "-c", "copy",
+            fname_template.format(name=match_name)
+        ])
