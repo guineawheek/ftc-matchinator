@@ -42,7 +42,7 @@ class Pass1EventData:
     fps: int
     width: int
     height: int
-    matches: list = dataclasses.field(default_factory=list)
+    matches: typing.List[Pass1EventMatch] = dataclasses.field(default_factory=list)
     match_result_map: Dict[str, match_result.MatchResultScreen] = dataclasses.field(default_factory=dict)
 
     def to_file(self, fname: str):

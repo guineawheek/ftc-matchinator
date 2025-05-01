@@ -16,9 +16,13 @@ MATCH_GROUP_MIN_COUNT = 5
 
 # number of seconds to clip a match before auto
 MATCH_PRE_AUTO_START = 4
-
-# 
+# number of seconds after the match ends to clip
 MATCH_POST_TELE_END = 5
+
+PRE_RESULT_COARSE = 10
+# really aiming for 4 seconds prior here
+PRE_RESULT_FINE = 3
+POST_SCORE_DETECT = 12
 
 class ScaledParams:
     """Returns an object that scales constants appropriately."""

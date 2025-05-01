@@ -150,13 +150,13 @@ def clip_match(p: Pass2EventMatch, src: str, fname_template: str, offset=0, pass
         for k, v in pass1_data.match_result_map.items():
             if not k.startswith("https://ftc.events"):
                 continue
-            if match_name.startswith("da Vinci") and k.endswith(f"playoff/{match_numer}/{tiebreaker_num}"):
+            if match_name.startswith("da Vinci") and k.endswith(f"FTCCMP1/playoff/{match_numer}/{tiebreaker_num}"):
                 results_screen = v
                 break
             if match_name.startswith("Qualification") and k.endswith(f"qualifications/{match_numer}"):
                 results_screen = v
                 break
-            if match_name.startswith("Playoff") and k.endswith(f"playoff/{match_numer}/{tiebreaker_num}"):
+            if match_name.startswith("Match") and k.endswith(f"playoff/{match_numer}/{tiebreaker_num}"):
                 results_screen = v
                 break
             
@@ -188,39 +188,40 @@ def clip_match(p: Pass2EventMatch, src: str, fname_template: str, offset=0, pass
             src,
             "-c:v", "copy",
             "-c:a", "copy",
-            "/tmp/matchinator_match_video.mkv"
+            "/tmp/matchinator_match_video.ts"
         ])
 
 
-        results_start = results_screen.start_ts - consts.MATCH_PRE_AUTO_START - offset
-        results_end = results_screen.start_ts + consts.MATCH_POST_TELE_END - offset
+        results_start = results_screen.start_ts - consts.PRE_RESULT_FINE - consts.PRE_RESULT_COARSE - offset
+        results_end = min(results_screen.start_ts + consts.POST_SCORE_DETECT, results_screen.end_ts - 2) - offset
 
+        # we need to reencode in order for this not to be mega crusty or be weirdly offset due to lack of keyframes
+        # this reencode is instantaneous but will vary depending on how a place streams (ugh)
         subprocess.check_call([
             "ffmpeg",
             "-y",
-            "-ss",
-            f"{results_start:.03f}",
-            "-to",
-            f"{results_end:.03f}",
-            "-i",
-            src,
-            "-c:v", "copy",
-            "-c:a", "copy",
-            "/tmp/matchinator_results_video.mkv"
+            "-ss", f"{results_start:.03f}",
+            "-to", f"{results_end:.03f}",
+            "-i", src,
+            "-ss", f"{consts.PRE_RESULT_COARSE:.03f}",
+            "-c:v", "libx264",
+            "-crf", "17",
+            "-c:a", "aac", "-b:a", "162k",
+            "/tmp/matchinator_results_video.ts"
         ])
 
         with open("/tmp/matchinator_concat.txt", "w") as f:
-            f.write("file '/tmp/matchinator_match_video.mkv'\nfile '/tmp/matchinator_results_video.mkv'")
+            f.write("file '/tmp/matchinator_match_video.ts'\nfile '/tmp/matchinator_results_video.ts'")
 
         subprocess.check_call([
             "ffmpeg",
             "-y",
             "-f",
-            "concat"
+            "concat",
             "-safe",
-            "0"
+            "0",
             "-i",
-            "/tmp/matchinator_concat.txt"
+            "/tmp/matchinator_concat.txt",
             "-c", "copy",
             fname_template.format(name=match_name)
         ])
