@@ -21,6 +21,9 @@ class FTCEventsClient:
         r.raise_for_status()
         return r.json()
     
+    def get_events(self):
+        return self.fetch(f"events")
+    
     @staticmethod
     def date_parse(date_str):
         return datetime.datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")
@@ -41,7 +44,7 @@ class FTCEventsClient:
         qual = self.fetch(f"schedule/{eventcode}/qual/hybrid")['schedule']
         totalqual = len(qual)
         for m in qual:
-            name = m['description'] + f" of {totalqual}"# --- "
+            name = m['description']# + f" of {totalqual}"# --- "
             red = []
             blue = []
             for team in sorted(m['teams'], key=lambda x: x['station']): # blue1 blue2 blue3, red1 red2 red3
@@ -57,7 +60,10 @@ class FTCEventsClient:
 
         play = self.fetch(f"schedule/{eventcode}/playoff/hybrid")['schedule']
         for m in play:
-            name = m['description']# + " --- "
+            name = f"Playoff Match {m['series']}"
+            if m['matchNumber'] > 1:
+                name += " Tiebreaker"
+
             red = []
             blue = []
 
