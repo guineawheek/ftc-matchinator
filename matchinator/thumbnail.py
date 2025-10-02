@@ -80,9 +80,22 @@ def generate_match_thumb(schedule: Schedule, event_name: str, match_name: str, m
     if red3 is not None:
         d.text((1920/2+35, 575), red3, align="left", anchor="lb", font=autosize_font(red3, 450, 50), fill=(255, 255, 255))
 
+
     score_fnt = ImageFont.truetype(FONT, 192)
     d.multiline_text((1920/4+80, 640), str(match_.get('scoreBlueFinal', "?")), anchor="ma", font=score_fnt, fill=(255, 255, 255))
     d.multiline_text((1920*3/4-80, 640), str(match_.get('scoreRedFinal', "?")), anchor="ma", font=score_fnt, fill=(255, 255, 255))
+
+    result_font = ImageFont.truetype(FONT, 96)
+    score_blue = int(match_.get('scoreBlueFinal', 0))
+    score_red = int(match_.get('scoreRedFinal', 0))
+
+
+    if score_red > score_blue:
+        d.text((1920 - 100, 920), "red alliance wins", anchor="ra", font=result_font, fill=(255, 255, 255))
+    elif score_blue > score_red:
+        d.text((100, 920), "blue alliance wins", anchor="la", font=result_font, fill=(255, 255, 255))
+    else:
+        d.text((1920/2 + 10, 920), "tie", anchor="ma", font=result_font, fill=(255, 255, 255))
     
     return img
 
