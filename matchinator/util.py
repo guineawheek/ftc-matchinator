@@ -65,14 +65,14 @@ def crop_rect(img, xrange, yrange) -> np.ndarray:
     
     
 
-def get_match_display(frame: np.ndarray, match_tlbr, params: consts.ScaledParams):
+def get_match_display(frame: np.ndarray, logo_tlbr, params: consts.ScaledParams):
     """crops the lower match display from the frame"""
-    tl, br = match_tlbr
+    tl, br = logo_tlbr
     buffer = np.zeros((params.DISPLAY_HEIGHT, params.WIDTH, 3), dtype=np.uint8)
 
     # The left edge that the copy starts from horizontally
     # default assumes that the display is clipped to the right
-    copy_from_left_edge = br[0] - params.WIDTH
+    copy_from_left_edge = br[0] + params.SEASON_LOGO_RIGHT_OFFSET - params.WIDTH
     left_edge = 0
     width = params.WIDTH - copy_from_left_edge
     if copy_from_left_edge < 0:

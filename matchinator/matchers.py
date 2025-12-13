@@ -51,23 +51,35 @@ class ParamMatcher(TemplateMatcher):
 
         self.real_init(params.in_width, params.in_height, template, threshold=self.THRESH)
 
-
-class ITDLogoMatcher(ParamMatcher):
-    """looks for and matches the Into The Deep logo in video frames"""
-    IMG_PATH = "templates/itd.png"
-    THRESH = consts.LOGO_MATCH_THR
-
-class ITDRedBasketMatcher(ParamMatcher):
-    IMG_PATH = "templates/red_basket.png"
+class MatchDisplayMatcher(ParamMatcher):
     THRESH = 0.5
     def exists(self, match_display, params: consts.ScaledParams):
-        """Checks if the red basket exists, which determines if this is even a valid match display at all."""
+        """Checks if the element exists, which determines if this is even a valid match display at all."""
         left_win = match_display[:, 0:match_display.shape[1]//2, :]
         right_win = match_display[:, match_display.shape[1]//2:, :]
         left_matches = self.match_template(left_win)
         right_matches = self.match_template(right_win)
 
         return np.any(left_matches > self.THRESH) or np.any(right_matches > self.THRESH)
+
+
+class DecodeLogoMatcher(ParamMatcher):
+    """looks for and matches the Decode logo in video frames"""
+    IMG_PATH = "templates/decode.png"
+    THRESH = consts.LOGO_MATCH_THR
+
+class DecodeIconMatcher(MatchDisplayMatcher):
+    """used to check that decode match is not a match preview"""
+    IMG_PATH = "templates/blue_score_icon.png"
+
+
+class ITDLogoMatcher(ParamMatcher):
+    """looks for and matches the Into The Deep logo in video frames"""
+    IMG_PATH = "templates/itd.png"
+    THRESH = consts.LOGO_MATCH_THR
+
+class ITDRedBasketMatcher(MatchDisplayMatcher):
+    IMG_PATH = "templates/red_basket.png"
 
 
 class EnergizeLogoMatcher(ParamMatcher):

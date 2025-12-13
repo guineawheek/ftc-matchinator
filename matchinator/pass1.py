@@ -114,8 +114,8 @@ def run(video_path, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_
     #scalex, scaley = np.array([width, height]) / consts.BASE_IMSIZE
     params = consts.ScaledParams(width, height)
 
-    logo_matcher = matchers.ITDLogoMatcher(params)
-    basket_matcher = matchers.ITDRedBasketMatcher(params)
+    logo_matcher = matchers.DecodeLogoMatcher(params)
+    not_a_preview_matcher = matchers.DecodeIconMatcher(params)
 
     # read the season logo
     
@@ -167,20 +167,20 @@ def run(video_path, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_
         # more browse logic here
 
         video_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
-        has_logo, match_tlbr = logo_matcher.match(frame)
+        has_logo, logo_tlbr = logo_matcher.match(frame)
         if has_logo:
             # get the topleft and bottomright corners
 
             # we have a match! (literal)
             # also crop out the match display part of the frame
-            match_display, match_is_top = util.get_match_display(frame, match_tlbr, params)
+            match_display, match_is_top = util.get_match_display(frame, logo_tlbr, params)
             
-            if util.match_is_preview(match_display, basket_matcher, params=params):
+            if util.match_is_preview(match_display, not_a_preview_matcher, params=params):
                 # welp, this is a match preview. next.
                 continue
             
             # we found a match or...something
-            match_name, _ = util.extract_match_name(frame, match_tlbr, params)
+            match_name, _ = util.extract_match_name(frame, logo_tlbr, params)
 
             if "Example" in match_name:
                 # this is the example display. ignore.

@@ -45,10 +45,11 @@ class ScaledParams:
         self.HEIGHT                 = SCALEY(1080)
 
         self.SEASON_LOGO_WIDTH      = SCALEX(170)
-        self.NAME_LEFT_OFFSET       = SCALEX(784)  # offset from left side of season logo
-        self.NAME_WIDTH             = SCALEX(780)  # width of match name window
+        self.NAME_LEFT_OFFSET       = SCALEX(690)  # offset from left side of season logo
+        self.NAME_WIDTH             = SCALEX(670)  # width of match name window
         self.NAME_HEIGHT            = SCALEY(60)   # height of match name window
-        self.DISPLAY_HEIGHT         = SCALEY(180)  # height of entire match display
+        self.DISPLAY_HEIGHT         = SCALEY(180)  # height of entire match display (bottom to top of color bar)
+        self.SEASON_LOGO_RIGHT_OFFSET = SCALEX(72) # Offset from the right edge of the season logo to the right edge of the match display
 
         # center timer ROI; used to determine if we're in a match or not, and the time
         self.CENTER_TIMER_LEFT      = SCALEX(860)
