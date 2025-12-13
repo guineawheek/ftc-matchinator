@@ -94,7 +94,7 @@ def run_parallel(video_path, threads=None, en_name=None, pout=sys.stderr, poll=1
     return p1ed
     
 
-def run(video_path, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_para=False, live=False, detect_match_results=True) -> Pass1EventData:
+def run(video_path, event_data: Pass1EventData = None, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_para=False, live=False, detect_match_results=True) -> Pass1EventData:
     """Runs a fast first pass of the video.
     This will run the pipeline every second in the video, and return a Pass1EventData object
     containing metadata and the timestamps of all frames with a match display on screen. 
@@ -108,7 +108,12 @@ def run(video_path, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
-    event_data = Pass1EventData(fps, width, height)
+    if event_data is None:
+        event_data = Pass1EventData(fps, width, height)
+    else:
+        event_data.fps = fps
+        event_data.width = width
+        event_data.height = height
     
 
     #scalex, scaley = np.array([width, height]) / consts.BASE_IMSIZE
@@ -229,5 +234,49 @@ def run(video_path, pout=sys.stderr, poll=1, debug=False, seek=0, fcount=-1, is_
     else:
         return event_data
 
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "video",
+        help="Video or stream path (e.g. `stream.ts`)"
+    )
+    parser.add_argument(
+        "dest",
+        help="Detection pickle file location. "
+    )
+    parser.add_argument(
+        "-s",
+        "--seek",
+        default=0,
+        type=int,
+        help="Frames into the video to seek before match frame detection starts"
+    )
+    parser.add_argument(
+        "-l",
+        "--live",
+        action="store_true",
+        help="""Add to signify the video output is being written to live; such t\
+                hat when the video end is reached, the video gets re-opened"""
+    )
 
+    args = parser.parse_args()
+    event_data = Pass1EventData(None, None, None) 
+    try:
+        with open(args.dest, "rb") as f:
+            loaded_data = pickle.load(f)
+        if isinstance(loaded_data, Pass1EventData):
+            event_data = loaded_data
+    except Exception:
+        pass
+
+
+    try:
+        run(args.video, event_data=event_data, seek=args.seek, live=args.live) 
+    except:
+        print("Aborted")
+        if event_data.fps is not None:
+            print("Saving data...")
+            event_data.to_file(args.dest)
+        raise
 
